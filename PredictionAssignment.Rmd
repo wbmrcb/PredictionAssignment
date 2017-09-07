@@ -1,0 +1,105 @@
+---
+title: "PredictionAssignment"
+author: "Rukshan Wijekoon"
+date: "September 7, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = TRUE)
+```
+
+## Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here:
+
+http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Loading Data
+Let's load the data and create the setup to analyse the dataset.
+```{r}
+library(caret)
+
+testData <- read.csv("data/pml-testing.csv")
+trainData <- read.csv("data/pml-training.csv")
+```
+
+We first remove all columns that contains NA and remove features that are not in the testing data set.
+
+```{r}
+features <- names(testData[ , colSums(is.na(testData)) == 0])[8:59]
+
+# Let's use only these features
+trainData <- trainData[ , c(features, "classe")]
+testData <- testData[ , c(features, "problem_id")]
+```
+
+## Partitioning Dataset
+Let's partition the data set
+```{r}
+set.seed(34527)
+
+inTrain <- createDataPartition(trainData$classe, p = 0.6, list = FALSE)
+
+training <- trainData[inTrain, ]
+testing <- trainData[-inTrain, ]
+```
+
+## Data Analysis
+Let's fit a tree using this data set.
+```{r, cache=TRUE}
+library(tree)
+
+fitTree <- tree(classe ~. , data = training)
+summary(fitTree)
+
+plot(fitTree)
+text(fitTree, pretty = 0, cex = 0.8)
+```
+
+## Cross Validataion
+Now let's perform a cross validation to check performance of the tree.
+```{r, cache=TRUE}
+treePred <- predict(fitTree, testing, type = "class")
+
+confusionMatrix(treePred, testing$classe)
+```
+
+And we get 0.6 as error rate (which is not very accurate).
+
+# Random Foreset Model
+Using random forest, let's try to minimize the out of sample error.
+
+```{r, cache=TRUE}
+library(randomForest)
+fitRf <- randomForest(classe ~., data = training, method = "rf",
+                      importance = T, trControl = trainControl(method = "cv",
+                      classProbs = TRUE, savePredictions = TRUE, allowParallel = TRUE, number = 10))
+
+plot(fitRf)
+```
+
+
+## Predicting with Random Forest Model
+```{r, cache=TRUE}
+pred <- predict(fitRf, testing, type = "class")
+confusionMatrix(pred, testing$classe)
+```
+
+Random forest model seems to be more accurate.
+
+## Predictions on Testing Data
+```{r}
+predicts <- predict(fitRf, testData)
+predicts
+```
+
